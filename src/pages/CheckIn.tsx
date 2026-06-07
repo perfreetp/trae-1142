@@ -5,15 +5,13 @@ import { cn } from '@/lib/utils';
 import Header from '@/components/Header';
 import PaceDisplay from '@/components/PaceDisplay';
 
-const TODAY = '2026-06-08';
-
 export default function CheckIn() {
   const { currentUser } = useUserStore();
-  const { records, checkIn, getRecordsByUser, getRecordByDate, getPlansByDate } = useTrainingStore();
+  const { selectedDate, records, checkIn, getRecordsByUser, getRecordByDate, getPlansByDate } = useTrainingStore();
   const [justCheckedIn, setJustCheckedIn] = useState(false);
   const [animating, setAnimating] = useState(false);
 
-  const todayRecord = getRecordByDate(currentUser.id, TODAY);
+  const todayRecord = getRecordByDate(currentUser.id, selectedDate);
   const isCheckedIn = todayRecord?.checkedIn ?? false;
 
   const userRecords = getRecordsByUser(currentUser.id);
@@ -24,7 +22,7 @@ export default function CheckIn() {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     let count = 0;
-    const checkDate = new Date(TODAY);
+    const checkDate = new Date(selectedDate);
 
     for (const record of sortedRecords) {
       const recordDate = new Date(record.date);
@@ -40,9 +38,9 @@ export default function CheckIn() {
     }
 
     return count;
-  }, [userRecords]);
+  }, [userRecords, selectedDate]);
 
-  const todayPlan = getPlansByDate(TODAY)[0];
+  const todayPlan = getPlansByDate(selectedDate)[0];
 
   const handleCheckIn = () => {
     if (isCheckedIn || animating) return;

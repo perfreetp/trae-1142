@@ -5,8 +5,6 @@ import { useUserStore, useTrainingStore } from '@/stores';
 import { cn } from '@/lib/utils';
 import Header from '@/components/Header';
 
-const TODAY = '2026-06-08';
-
 const rpeDescriptions: Record<number, string> = {
   1: '非常轻松',
   2: '很轻松',
@@ -35,13 +33,13 @@ function getFatigueBg(value: number): string {
 export default function Fatigue() {
   const navigate = useNavigate();
   const { currentUser } = useUserStore();
-  const { addRecord, getRecordByDate, getPlansByDate } = useTrainingStore();
+  const { selectedDate, addRecord, getRecordByDate, getPlansByDate } = useTrainingStore();
 
   const [rpe, setRpe] = useState(5);
   const [note, setNote] = useState('');
 
-  const existingRecord = getRecordByDate(currentUser.id, TODAY);
-  const todayPlan = getPlansByDate(TODAY)[0];
+  const existingRecord = getRecordByDate(currentUser.id, selectedDate);
+  const todayPlan = getPlansByDate(selectedDate)[0];
 
   const handleSubmit = () => {
     if (existingRecord) {
@@ -53,7 +51,7 @@ export default function Fatigue() {
       id: `r-${Date.now()}`,
       userId: currentUser.id,
       planId: todayPlan?.id ?? '',
-      date: TODAY,
+      date: selectedDate,
       distance: 0,
       duration: 0,
       pace: 0,

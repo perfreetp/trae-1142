@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarDays, Dumbbell, Timer, Users, ArrowRight, Plus, X } from 'lucide-react';
+import { CalendarDays, Dumbbell, Timer, Users, ArrowRight, Plus, X, Check, ClipboardCheck } from 'lucide-react';
 import { useUserStore, useTrainingStore } from '@/stores';
 import { cn } from '@/lib/utils';
 import Header from '@/components/Header';
@@ -57,8 +57,8 @@ const emptyForm = {
 };
 
 export default function Training() {
-  const { role } = useUserStore();
-  const { selectedDate, setSelectedDate, getPlansByDate, getCompletionRate, addPlan } = useTrainingStore();
+  const { role, currentUser } = useUserStore();
+  const { selectedDate, setSelectedDate, getPlansByDate, getCompletionRate, getCompletionDetails, getRecordByDate, addPlan } = useTrainingStore();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
 
@@ -87,6 +87,44 @@ export default function Training() {
     setForm(emptyForm);
     setSelectedDate(form.date);
   };
+
+  const existingRecord = selectedPlan && role === 'member'
+    ? getRecordByDate(currentUser.id, selectedDate)
+    : undefined;
+
+  const completionDetails = selectedPlan && role === 'coach'
+    ? getCompletionDetails(selectedPlan.id)
+    : [];
+
+  const executionSteps = role === 'member' && selectedPlan ? [
+    {
+      label: '训练记录',
+      desc: '记录距离、配速、心率',
+      completed: !!existingRecord?.completed,
+      path: '/training/record',
+    },
+    {
+      label: '疲劳自评',
+      desc: 'RPE 主观疲劳量表',
+      completed: !!existingRecord && existingRecord.fatigue > 0,
+      path: '/training/record',
+    },
+    {
+      label: '心率区间',
+      desc: '各心率区间时间分布',
+      completed: !!existingRecord && Object.values(existingRecord.heartRateZones).some(v => v > 0),
+      path: '/training/record',
+    },
+    {
+      label: '打卡签到',
+      desc: '确认完成今日训练',
+      completed: !!existingRecord?.checkedIn,
+      path: '/training/checkin',
+    },
+  ] : [];
+
+  const completedStepCount = executionSteps.filter(s => s.completed).length;
+  const allStepsDone = completedStepCount === executionSteps.length && executionSteps.length > 0;
 
   return (
     <div className="min-h-screen bg-brand-dark">
@@ -354,25 +392,127 @@ export default function Training() {
               </div>
             </div>
 
-            {role === 'coach' && (
-              <div className="brand-card flex items-center gap-4">
-                <ProgressRing percentage={getCompletionRate(selectedPlan.id)} size={64} strokeWidth={6} />
-                <div>
-                  <p className="text-sm font-medium text-white">打卡完成率</p>
-                  <p className="text-xs text-brand-gray mt-0.5">
-                    已有 {getCompletionRate(selectedPlan.id)}% 队员完成打卡
-                  </p>
+            {role === 'member' && (
+              <div className="brand-card">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-medium text-white flex items-center gap-2">
+                    <ClipboardCheck className="w-4 h-4 text-brand-cyan" />
+                    训练执行
+                  </h4>
+                  <span className={cn(
+                    'text-xs px-2 py-0.5 rounded-full font-medium',
+                    allStepsDone
+                      ? 'bg-brand-green/20 text-brand-green'
+                      : 'bg-brand-deeper text-brand-gray',
+                  )}>
+                    {completedStepCount}/{executionSteps.length} 完成
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {executionSteps.map((step, i) => (
+                    <div
+                      key={i}
+                      className={cn(
+                        'flex items-center gap-3 p-3 rounded-xl transition-all',
+                        step.completed ? 'bg-brand-green/5' : 'bg-brand-deeper',
+                      )}
+                    >
+                      <div className={cn(
+                        'w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold',
+                        step.completed
+                          ? 'bg-brand-green/20 text-brand-green'
+                          : 'bg-brand-card text-brand-gray',
+                      )}>
+                        {step.completed ? <Check size={14} /> : i + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={cn('text-sm font-medium', step.completed ? 'text-white' : 'text-brand-gray')}>
+                          {step.label}
+                        </p>
+                        <p className="text-[10px] text-brand-gray mt-0.5">{step.desc}</p>
+                      </div>
+                      {!step.completed && (
+                        <Link
+                          to={step.path}
+                          className="text-xs text-brand-cyan hover:text-brand-cyan/80 shrink-0"
+                        >
+                          去完成
+                        </Link>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
 
-            <Link
-              to="/training/record"
-              className="brand-btn flex items-center justify-center gap-2 w-full"
-            >
-              记录训练
-              <ArrowRight className="w-4 h-4" />
-            </Link>
+            {role === 'coach' && (
+              <div className="brand-card">
+                <div className="flex items-center gap-4 mb-4">
+                  <ProgressRing percentage={getCompletionRate(selectedPlan.id)} size={64} strokeWidth={6} />
+                  <div>
+                    <p className="text-sm font-medium text-white">打卡完成率</p>
+                    <p className="text-xs text-brand-gray mt-0.5">
+                      已有 {getCompletionRate(selectedPlan.id)}% 队员完成打卡
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border-t border-brand-border pt-3">
+                  <h4 className="text-xs text-brand-gray mb-2">队员完成情况</h4>
+                  <div className="space-y-2">
+                    {completionDetails.map((detail) => (
+                      <div key={detail.userId} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={cn(
+                            'w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold',
+                            detail.checkedIn
+                              ? 'bg-brand-green/20 text-brand-green'
+                              : 'bg-brand-deeper text-brand-gray',
+                          )}>
+                            {detail.checkedIn ? <Check size={12} /> : detail.name[0]}
+                          </div>
+                          <span className="text-sm text-white">{detail.name}</span>
+                        </div>
+                        <span className={cn(
+                          'text-xs px-2 py-0.5 rounded-full font-medium',
+                          detail.checkedIn
+                            ? 'bg-brand-green/20 text-brand-green'
+                            : 'bg-brand-deeper text-brand-gray',
+                        )}>
+                          {detail.checkedIn ? '已完成' : '未完成'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {role === 'member' && (
+              <div className="flex gap-3">
+                <Link
+                  to="/training/record"
+                  className="brand-btn flex-1 flex items-center justify-center gap-2"
+                >
+                  {existingRecord?.completed ? '修改记录' : '记录训练'}
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+                {existingRecord?.completed && (
+                  <Link
+                    to="/training/checkin"
+                    className={cn(
+                      'flex-1 flex items-center justify-center gap-2 rounded-xl py-3 font-semibold transition-all',
+                      existingRecord.checkedIn
+                        ? 'bg-brand-green/20 text-brand-green'
+                        : 'bg-gradient-brand text-white shadow-glow',
+                    )}
+                  >
+                    {existingRecord.checkedIn ? '已打卡' : '去打卡'}
+                  </Link>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <div className="animate-slide-up flex flex-col items-center justify-center py-16">

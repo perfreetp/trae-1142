@@ -54,10 +54,13 @@ export interface Activity {
 }
 
 export interface Score {
+  id: string;
   userId: string;
-  month: string;
+  raceName: string;
   distance: number;
+  time: number;
   pace: number;
+  date: string;
 }
 
 export interface Notification {
@@ -109,17 +112,18 @@ export const activities: Activity[] = [
 ];
 
 export const scores: Score[] = [
-  { userId: 'm1', month: '2026-06', distance: 42.5, pace: 5.8 },
-  { userId: 'm1', month: '2026-05', distance: 38.0, pace: 6.0 },
-  { userId: 'm1', month: '2026-04', distance: 35.0, pace: 6.2 },
-  { userId: 'm2', month: '2026-06', distance: 35.2, pace: 6.2 },
-  { userId: 'm2', month: '2026-05', distance: 30.0, pace: 6.5 },
-  { userId: 'm3', month: '2026-06', distance: 28.8, pace: 5.5 },
-  { userId: 'm3', month: '2026-05', distance: 25.0, pace: 5.7 },
-  { userId: 'm4', month: '2026-06', distance: 22.0, pace: 6.8 },
-  { userId: 'm4', month: '2026-05', distance: 20.0, pace: 7.0 },
-  { userId: 'm5', month: '2026-06', distance: 18.5, pace: 6.5 },
-  { userId: 'm5', month: '2026-05', distance: 15.0, pace: 6.8 },
+  { id: 's1', userId: 'm1', raceName: '朝阳公园晨跑赛', distance: 10, time: 58, pace: 5.8, date: '2026-06-07' },
+  { id: 's2', userId: 'm1', raceName: '奥森半程测试', distance: 21.1, time: 126.6, pace: 6.0, date: '2026-05-25' },
+  { id: 's3', userId: 'm1', raceName: '月度10K评测', distance: 10, time: 62, pace: 6.2, date: '2026-04-20' },
+  { id: 's4', userId: 'm1', raceName: '长安街夜跑', distance: 5, time: 27.5, pace: 5.5, date: '2026-06-01' },
+  { id: 's5', userId: 'm2', raceName: '朝阳公园晨跑赛', distance: 10, time: 62, pace: 6.2, date: '2026-06-07' },
+  { id: 's6', userId: 'm2', raceName: '奥森周末长跑', distance: 15, time: 97.5, pace: 6.5, date: '2026-05-18' },
+  { id: 's7', userId: 'm3', raceName: '朝阳公园晨跑赛', distance: 10, time: 55, pace: 5.5, date: '2026-06-07' },
+  { id: 's8', userId: 'm3', raceName: '月度5K评测', distance: 5, time: 27, pace: 5.4, date: '2026-05-10' },
+  { id: 's9', userId: 'm4', raceName: '奥森南园环线跑', distance: 5, time: 34, pace: 6.8, date: '2026-06-05' },
+  { id: 's10', userId: 'm4', raceName: '月度10K评测', distance: 10, time: 70, pace: 7.0, date: '2026-05-15' },
+  { id: 's11', userId: 'm5', raceName: '护城河慢跑', distance: 7.2, time: 46.8, pace: 6.5, date: '2026-06-03' },
+  { id: 's12', userId: 'm5', raceName: '月度5K评测', distance: 5, time: 34, pace: 6.8, date: '2026-05-12' },
 ];
 
 export const notifications: Notification[] = [

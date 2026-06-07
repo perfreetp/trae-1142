@@ -15,6 +15,7 @@ interface TeamState {
   rejectLeave: (id: string) => void;
   addActivity: (activity: Activity) => void;
   joinActivity: (activityId: string, userId: string) => void;
+  leaveActivity: (activityId: string, userId: string) => void;
   addScore: (score: Score) => void;
   getMembersByGroup: (groupId: string) => User[];
   getRankingByMonthlyDistance: () => { userId: string; name: string; distance: number }[];
@@ -45,8 +46,16 @@ export const useTeamStore = create<TeamState>((set, get) => ({
   joinActivity: (activityId, userId) =>
     set((state) => ({
       activities: state.activities.map((a) =>
-        a.id === activityId && !a.participants.includes(userId)
+        a.id === activityId && !a.participants.includes(userId) && a.participants.length < a.maxParticipants
           ? { ...a, participants: [...a.participants, userId] }
+          : a
+      ),
+    })),
+  leaveActivity: (activityId, userId) =>
+    set((state) => ({
+      activities: state.activities.map((a) =>
+        a.id === activityId && a.participants.includes(userId)
+          ? { ...a, participants: a.participants.filter((p) => p !== userId) }
           : a
       ),
     })),
@@ -57,16 +66,19 @@ export const useTeamStore = create<TeamState>((set, get) => ({
   getRankingByMonthlyDistance: () => {
     const currentScores = get().scores;
     const currentUsers = get().users;
+    const currentMonth = '2026-06';
     const distanceMap = new Map<string, number>();
     for (const s of currentScores) {
-      distanceMap.set(s.userId, (distanceMap.get(s.userId) ?? 0) + s.distance);
+      if (s.date.startsWith(currentMonth)) {
+        distanceMap.set(s.userId, (distanceMap.get(s.userId) ?? 0) + s.distance);
+      }
     }
     return currentUsers
       .filter((u) => u.role === 'member')
       .map((u) => ({
         userId: u.id,
         name: u.name,
-        distance: distanceMap.get(u.id) ?? 0,
+        distance: Math.round((distanceMap.get(u.id) ?? 0) * 10) / 10,
       }))
       .sort((a, b) => b.distance - a.distance);
   },

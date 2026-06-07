@@ -6,14 +6,12 @@ import Header from '@/components/Header';
 import PaceDisplay from '@/components/PaceDisplay';
 import HeartRateZones from '@/components/HeartRateZones';
 
-const TODAY = '2026-06-08';
-
 export default function TrainingRecord() {
   const navigate = useNavigate();
   const { currentUser } = useUserStore();
   const { selectedDate, addRecord, getPlansByDate } = useTrainingStore();
 
-  const todayPlans = getPlansByDate(TODAY);
+  const todayPlans = getPlansByDate(selectedDate);
   const planId = todayPlans[0]?.id ?? '';
 
   const [distance, setDistance] = useState('');

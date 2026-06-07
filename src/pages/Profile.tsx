@@ -18,7 +18,7 @@ export default function Profile() {
 
   const currentMonth = '2026-06';
   const monthlyDistance = scores
-    .filter((s) => s.userId === currentUser.id && s.month === currentMonth)
+    .filter((s) => s.userId === currentUser.id && s.date.startsWith(currentMonth))
     .reduce((sum, s) => sum + s.distance, 0);
 
   const trainingCount = records.filter((r) => r.userId === currentUser.id).length;

@@ -1,8 +1,9 @@
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Target, ClipboardList, Activity, Footprints, AlertTriangle } from 'lucide-react';
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import Header from '@/components/Header';
-import { useTeamStore } from '@/stores';
+import { useTeamStore, useUserStore } from '@/stores';
 import { useTrainingStore } from '@/stores';
 
 const quickLinks = [
@@ -13,32 +14,60 @@ const quickLinks = [
   { label: '伤病提醒', path: '/data/injury', icon: AlertTriangle, color: 'text-brand-red' },
 ];
 
+function formatMinPace(minutes: number) {
+  if (minutes <= 0) return '--';
+  const min = Math.floor(minutes);
+  const sec = Math.round((minutes - min) * 60);
+  return `${min}'${sec.toString().padStart(2, '0')}"`;
+}
+
 export default function Data() {
+  const { currentUser } = useUserStore();
   const scores = useTeamStore((s) => s.scores);
   const records = useTrainingStore((s) => s.records);
 
-  const userScores = scores.filter((s) => s.userId === 'm1').sort((a, b) => a.month.localeCompare(b.month));
+  const userScores = useMemo(
+    () => scores.filter((s) => s.userId === currentUser.id),
+    [scores, currentUser.id]
+  );
 
-  const currentMonth = userScores[userScores.length - 1];
-  const monthlyDistance = currentMonth?.distance ?? 0;
-  const avgPace = currentMonth?.pace ?? 0;
-  const trainingCount = records.filter((r) => r.userId === 'm1').length;
+  const currentMonth = '2026-06';
 
-  const formatPace = (minutes: number) => {
-    const min = Math.floor(minutes);
-    const sec = Math.round((minutes - min) * 60);
-    return `${min}'${sec.toString().padStart(2, '0')}"`;
-  };
+  const monthlyScores = useMemo(
+    () => userScores.filter((s) => s.date.startsWith(currentMonth)),
+    [userScores]
+  );
 
-  const distanceData = userScores.map((s) => ({
-    month: s.month.slice(5),
-    distance: s.distance,
-  }));
+  const monthlyDistance = useMemo(
+    () => Math.round(monthlyScores.reduce((sum, s) => sum + s.distance, 0) * 10) / 10,
+    [monthlyScores]
+  );
 
-  const paceData = userScores.map((s) => ({
-    month: s.month.slice(5),
-    pace: s.pace,
-  }));
+  const avgPace = useMemo(() => {
+    const totalTime = monthlyScores.reduce((sum, s) => sum + s.time, 0);
+    const totalDist = monthlyScores.reduce((sum, s) => sum + s.distance, 0);
+    return totalDist > 0 ? totalTime / totalDist : 0;
+  }, [monthlyScores]);
+
+  const trainingCount = records.filter((r) => r.userId === currentUser.id).length;
+
+  const monthlyAgg = useMemo(() => {
+    const monthMap = new Map<string, { distance: number; time: number }>();
+    for (const s of userScores) {
+      const month = s.date.slice(0, 7);
+      const existing = monthMap.get(month) ?? { distance: 0, time: 0 };
+      existing.distance += s.distance;
+      existing.time += s.time;
+      monthMap.set(month, existing);
+    }
+    return Array.from(monthMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, data]) => ({
+        month: month.slice(5),
+        distance: Math.round(data.distance * 10) / 10,
+        pace: data.distance > 0 ? Math.round((data.time / data.distance) * 100) / 100 : 0,
+      }));
+  }, [userScores]);
 
   return (
     <div className="page-content">
@@ -47,7 +76,7 @@ export default function Data() {
       <div className="grid grid-cols-3 gap-3 mb-6">
         {[
           { label: '本月跑量', value: `${monthlyDistance}`, unit: 'km' },
-          { label: '平均配速', value: formatPace(avgPace), unit: '/km' },
+          { label: '平均配速', value: formatMinPace(avgPace), unit: '/km' },
           { label: '训练次数', value: `${trainingCount}`, unit: '次' },
         ].map((stat) => (
           <div key={stat.label} className="brand-card text-center">
@@ -64,7 +93,7 @@ export default function Data() {
         <h2 className="section-title mb-3">跑量趋势</h2>
         <div className="brand-card">
           <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={distanceData}>
+            <AreaChart data={monthlyAgg}>
               <defs>
                 <linearGradient id="distGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#22D3EE" stopOpacity={0.4} />
@@ -88,7 +117,7 @@ export default function Data() {
         <h2 className="section-title mb-3">配速趋势</h2>
         <div className="brand-card">
           <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={paceData}>
+            <LineChart data={monthlyAgg}>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
               <XAxis dataKey="month" tick={{ fill: '#94A3B8', fontSize: 12 }} axisLine={{ stroke: '#334155' }} />
               <YAxis tick={{ fill: '#94A3B8', fontSize: 12 }} axisLine={{ stroke: '#334155' }} domain={['auto', 'auto']} />
