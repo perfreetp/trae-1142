@@ -1,10 +1,12 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarDays, Dumbbell, Timer, Users, ArrowRight } from 'lucide-react';
+import { CalendarDays, Dumbbell, Timer, Users, ArrowRight, Plus, X } from 'lucide-react';
 import { useUserStore, useTrainingStore } from '@/stores';
 import { cn } from '@/lib/utils';
 import Header from '@/components/Header';
 import PaceDisplay from '@/components/PaceDisplay';
 import ProgressRing from '@/components/ProgressRing';
+import type { TrainingPlan } from '@/mock/training';
 
 const TODAY = '2026-06-08';
 
@@ -25,6 +27,9 @@ const typeColors: Record<string, string> = {
   fartlek: 'bg-brand-orange/20 text-brand-orange',
 };
 
+const hrZones = ['Z1', 'Z1-Z2', 'Z2', 'Z2-Z3', 'Z3', 'Z3-Z4', 'Z4', 'Z4-Z5', 'Z5'];
+const targetGroups = ['全队', '竞速组', '耐力组'];
+
 function getWeekDates(baseDate: string) {
   const base = new Date(baseDate);
   const dayOfWeek = base.getDay();
@@ -39,19 +44,191 @@ function getWeekDates(baseDate: string) {
   });
 }
 
+const emptyForm = {
+  date: TODAY,
+  type: 'easy' as TrainingPlan['type'],
+  targetDistance: '',
+  targetPace: '',
+  heartRateZone: 'Z2-Z3',
+  targetGroup: '全队',
+  warmup: '',
+  mainSession: '',
+  cooldown: '',
+};
+
 export default function Training() {
   const { role } = useUserStore();
-  const { selectedDate, setSelectedDate, getPlansByDate, getCompletionRate } = useTrainingStore();
+  const { selectedDate, setSelectedDate, getPlansByDate, getCompletionRate, addPlan } = useTrainingStore();
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(emptyForm);
 
   const weekDates = getWeekDates(TODAY);
   const selectedPlans = getPlansByDate(selectedDate);
   const selectedPlan = selectedPlans[0];
+
+  const handlePublish = () => {
+    if (!form.date || !form.targetDistance || !form.targetPace || !form.mainSession) return;
+    const plan: TrainingPlan = {
+      id: `p_${Date.now()}`,
+      title: typeLabels[form.type] || form.type,
+      date: form.date,
+      type: form.type,
+      targetDistance: Number(form.targetDistance),
+      targetPace: Number(form.targetPace) * 60,
+      warmup: form.warmup || '动态拉伸5分钟',
+      mainSession: form.mainSession,
+      cooldown: form.cooldown || '拉伸放松10分钟',
+      heartRateZone: form.heartRateZone,
+      targetGroup: form.targetGroup,
+      description: form.mainSession,
+    };
+    addPlan(plan);
+    setShowForm(false);
+    setForm(emptyForm);
+    setSelectedDate(form.date);
+  };
 
   return (
     <div className="min-h-screen bg-brand-dark">
       <Header title="训练计划" />
 
       <div className="page-content space-y-5">
+        {role === 'coach' && (
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="brand-btn-outline flex items-center gap-2 text-sm w-full justify-center"
+          >
+            {showForm ? <X size={16} /> : <Plus size={16} />}
+            {showForm ? '取消新建' : '新建训练计划'}
+          </button>
+        )}
+
+        {role === 'coach' && showForm && (
+          <div className="brand-card space-y-4 animate-slide-up">
+            <h3 className="section-title text-base">发布训练计划</h3>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-brand-gray mb-1 block">训练日期</label>
+                <input
+                  type="date"
+                  value={form.date}
+                  onChange={(e) => setForm({ ...form, date: e.target.value })}
+                  className="brand-input w-full text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-brand-gray mb-1 block">训练类型</label>
+                <select
+                  value={form.type}
+                  onChange={(e) => setForm({ ...form, type: e.target.value as TrainingPlan['type'] })}
+                  className="brand-input w-full text-sm"
+                >
+                  {Object.entries(typeLabels).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-brand-gray mb-1 block">目标距离 (km)</label>
+                <input
+                  type="number"
+                  placeholder="10"
+                  value={form.targetDistance}
+                  onChange={(e) => setForm({ ...form, targetDistance: e.target.value })}
+                  className="brand-input w-full text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-brand-gray mb-1 block">目标配速 (min/km)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  placeholder="6.0"
+                  value={form.targetPace}
+                  onChange={(e) => setForm({ ...form, targetPace: e.target.value })}
+                  className="brand-input w-full text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-brand-gray mb-1 block">心率区间</label>
+                <select
+                  value={form.heartRateZone}
+                  onChange={(e) => setForm({ ...form, heartRateZone: e.target.value })}
+                  className="brand-input w-full text-sm"
+                >
+                  {hrZones.map((z) => (
+                    <option key={z} value={z}>{z}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-brand-gray mb-1 block">训练对象</label>
+                <select
+                  value={form.targetGroup}
+                  onChange={(e) => setForm({ ...form, targetGroup: e.target.value })}
+                  className="brand-input w-full text-sm"
+                >
+                  {targetGroups.map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs text-brand-gray mb-1 block">热身内容</label>
+              <input
+                type="text"
+                placeholder="动态拉伸5分钟"
+                value={form.warmup}
+                onChange={(e) => setForm({ ...form, warmup: e.target.value })}
+                className="brand-input w-full text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs text-brand-gray mb-1 block">主训练内容 *</label>
+              <textarea
+                placeholder="10公里匀速跑，配速6:00-6:15"
+                value={form.mainSession}
+                onChange={(e) => setForm({ ...form, mainSession: e.target.value })}
+                className="brand-input w-full text-sm min-h-[60px] resize-none"
+                rows={2}
+              />
+            </div>
+
+            <div>
+              <label className="text-xs text-brand-gray mb-1 block">放松内容</label>
+              <input
+                type="text"
+                placeholder="拉伸放松10分钟"
+                value={form.cooldown}
+                onChange={(e) => setForm({ ...form, cooldown: e.target.value })}
+                className="brand-input w-full text-sm"
+              />
+            </div>
+
+            <button
+              onClick={handlePublish}
+              disabled={!form.date || !form.targetDistance || !form.targetPace || !form.mainSession}
+              className={cn(
+                'brand-btn w-full flex items-center justify-center gap-2',
+                (!form.date || !form.targetDistance || !form.targetPace || !form.mainSession) && 'opacity-50 cursor-not-allowed'
+              )}
+            >
+              <Dumbbell size={16} />
+              发布计划
+            </button>
+          </div>
+        )}
+
         <div className="animate-slide-up">
           <div className="flex items-center gap-2 mb-3">
             <CalendarDays className="w-4 h-4 text-brand-cyan" />

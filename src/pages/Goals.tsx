@@ -9,6 +9,28 @@ const typeConfig: Record<Goal['type'], { icon: typeof Target; color: string }> =
   frequency: { icon: Repeat, color: 'text-brand-orange' },
 };
 
+function calcProgress(goal: Goal) {
+  if (goal.type === 'pace') {
+    const maxPace = goal.target * 1.5;
+    const range = maxPace - goal.target;
+    if (range <= 0) return 100;
+    const achieved = maxPace - goal.current;
+    return Math.min(Math.max(Math.round((achieved / range) * 100), 0), 100);
+  }
+  return Math.min(Math.round((goal.current / goal.target) * 100), 100);
+}
+
+function calcRemaining(goal: Goal) {
+  if (goal.type === 'pace') {
+    const diff = goal.current - goal.target;
+    if (diff <= 0) return '已达成目标';
+    const min = Math.floor(diff);
+    const sec = Math.round((diff - min) * 60);
+    return `还差 ${min}'${sec.toString().padStart(2, '0')}"`;
+  }
+  return `剩余 ${(goal.target - goal.current).toFixed(1)} ${goal.unit}`;
+}
+
 export default function Goals() {
   const userGoals = goals.filter((g) => g.userId === 'm1');
 
@@ -20,7 +42,7 @@ export default function Goals() {
         {userGoals.map((goal) => {
           const config = typeConfig[goal.type];
           const Icon = config.icon;
-          const progress = Math.min((goal.current / goal.target) * 100, 100);
+          const progress = calcProgress(goal);
 
           return (
             <div key={goal.id} className="brand-card">
@@ -46,10 +68,8 @@ export default function Goals() {
               </div>
 
               <div className="flex justify-between mt-2">
-                <span className="text-xs text-brand-gray">进度 {Math.round(progress)}%</span>
-                <span className="text-xs text-brand-gray">
-                  剩余 {(goal.target - goal.current).toFixed(1)} {goal.unit}
-                </span>
+                <span className="text-xs text-brand-gray">进度 {progress}%</span>
+                <span className="text-xs text-brand-gray">{calcRemaining(goal)}</span>
               </div>
             </div>
           );

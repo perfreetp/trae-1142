@@ -18,6 +18,11 @@ import Equipment from "@/pages/Equipment";
 import Injury from "@/pages/Injury";
 import Notifications from "@/pages/Notifications";
 import Profile from "@/pages/Profile";
+import ProfileDetail from "@/pages/ProfileDetail";
+import ProfileHeartRate from "@/pages/ProfileHeartRate";
+import ProfileNotif from "@/pages/ProfileNotifications";
+import ProfileExport from "@/pages/ProfileExport";
+import ProfileAbout from "@/pages/ProfileAbout";
 
 export default function App() {
   return (
@@ -42,6 +47,11 @@ export default function App() {
           <Route path="/data/injury" element={<Injury />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/profile/detail" element={<ProfileDetail />} />
+          <Route path="/profile/heartrate" element={<ProfileHeartRate />} />
+          <Route path="/profile/notifications" element={<ProfileNotif />} />
+          <Route path="/profile/export" element={<ProfileExport />} />
+          <Route path="/profile/about" element={<ProfileAbout />} />
         </Route>
       </Routes>
     </Router>

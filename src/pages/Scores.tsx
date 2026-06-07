@@ -2,10 +2,17 @@ import { useState } from 'react';
 import { Send } from 'lucide-react';
 import Header from '@/components/Header';
 import { useUserStore, useTeamStore } from '@/stores';
+import type { Score } from '@/mock/data';
+
+function formatMinPace(minutes: number) {
+  const min = Math.floor(minutes);
+  const sec = Math.round((minutes - min) * 60);
+  return `${min}'${sec.toString().padStart(2, '0')}"`;
+}
 
 export default function Scores() {
-  const { role, users } = useUserStore();
-  const { scores } = useTeamStore();
+  const { role, users, currentUser } = useUserStore();
+  const { scores, addScore } = useTeamStore();
   const isCoach = role === 'coach';
 
   const memberUsers = users.filter((u) => u.role === 'member');
@@ -14,26 +21,33 @@ export default function Scores() {
   const [raceName, setRaceName] = useState('');
   const [distance, setDistance] = useState('');
   const [time, setTime] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState('2026-06-08');
   const [submitted, setSubmitted] = useState(false);
 
+  const viewUserId = isCoach ? 'm1' : currentUser.id;
   const userScores = scores
-    .filter((s) => s.userId === 'm1')
+    .filter((s) => s.userId === viewUserId)
     .sort((a, b) => b.month.localeCompare(a.month));
 
   const handleSubmit = () => {
     if (!selectedMember || !raceName || !distance || !time) return;
+    const dist = Number(distance);
+    const timeMin = Number(time);
+    if (!dist || !timeMin) return;
+    const pace = timeMin / dist;
+
+    const newScore: Score = {
+      userId: selectedMember,
+      month: date.slice(0, 7),
+      distance: dist,
+      pace: Math.round(pace * 100) / 100,
+    };
+    addScore(newScore);
     setSubmitted(true);
     setTimeout(() => setSubmitted(false), 2000);
     setRaceName('');
     setDistance('');
     setTime('');
-  };
-
-  const formatPace = (seconds: number) => {
-    const min = Math.floor(seconds / 60);
-    const sec = seconds % 60;
-    return `${min}'${sec.toString().padStart(2, '0')}"`;
   };
 
   return (
@@ -66,14 +80,16 @@ export default function Scores() {
             <div className="grid grid-cols-2 gap-3">
               <input
                 type="number"
+                step="0.1"
                 placeholder="距离 (km)"
                 value={distance}
                 onChange={(e) => setDistance(e.target.value)}
                 className="brand-input w-full"
               />
               <input
-                type="text"
-                placeholder="完赛时间"
+                type="number"
+                step="0.1"
+                placeholder="完赛时间 (分钟)"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
                 className="brand-input w-full"
@@ -89,6 +105,7 @@ export default function Scores() {
 
             <button
               onClick={handleSubmit}
+              disabled={!selectedMember || !raceName || !distance || !time}
               className="brand-btn w-full flex items-center justify-center gap-2"
             >
               <Send size={16} />
@@ -113,8 +130,8 @@ export default function Scores() {
                   <div className="text-xs text-brand-gray">公里</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-brand-green font-display font-bold">{formatPace(s.pace)}</div>
-                  <div className="text-xs text-brand-gray">配速</div>
+                  <div className="text-brand-green font-display font-bold">{formatMinPace(s.pace)}</div>
+                  <div className="text-xs text-brand-gray">配速/km</div>
                 </div>
               </div>
             </div>

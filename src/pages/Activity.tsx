@@ -1,13 +1,37 @@
 import { useState } from 'react';
-import { MapPin, Calendar, UserPlus, Plus } from 'lucide-react';
+import { MapPin, Calendar, UserPlus, Plus, X } from 'lucide-react';
 import Header from '@/components/Header';
 import { useTeamStore, useUserStore } from '@/stores';
+import type { Activity } from '@/mock/data';
 
 export default function Activity() {
-  const { activities, joinActivity } = useTeamStore();
+  const { activities, joinActivity, addActivity } = useTeamStore();
   const { currentUser, role } = useUserStore();
-  const [showCreate, setShowCreate] = useState(false);
   const isCoach = role === 'coach';
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [title, setTitle] = useState('');
+  const [actDate, setActDate] = useState('');
+  const [location, setLocation] = useState('');
+  const [maxP, setMaxP] = useState('');
+
+  const handleCreate = () => {
+    if (!title || !actDate || !location || !maxP) return;
+    const newActivity: Activity = {
+      id: `a_${Date.now()}`,
+      title,
+      date: actDate,
+      location,
+      maxParticipants: Number(maxP),
+      participants: [],
+    };
+    addActivity(newActivity);
+    setTitle('');
+    setActDate('');
+    setLocation('');
+    setMaxP('');
+    setShowCreate(false);
+  };
 
   return (
     <div>
@@ -19,38 +43,69 @@ export default function Activity() {
             onClick={() => setShowCreate(!showCreate)}
             className="brand-btn-outline flex items-center gap-2 text-sm w-full justify-center"
           >
-            <Plus size={16} />
-            创建活动
+            {showCreate ? <X size={16} /> : <Plus size={16} />}
+            {showCreate ? '取消创建' : '创建活动'}
           </button>
         )}
 
         {isCoach && showCreate && (
-          <div className="brand-card space-y-4">
+          <div className="brand-card space-y-4 animate-slide-up">
             <h2 className="section-title text-base">新建活动</h2>
             <div>
               <label className="text-brand-gray text-xs mb-1 block">活动名称</label>
-              <input type="text" placeholder="输入活动名称" className="brand-input w-full" />
+              <input
+                type="text"
+                placeholder="输入活动名称"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="brand-input w-full"
+              />
             </div>
             <div>
               <label className="text-brand-gray text-xs mb-1 block">活动日期</label>
-              <input type="date" className="brand-input w-full" />
+              <input
+                type="date"
+                value={actDate}
+                onChange={(e) => setActDate(e.target.value)}
+                className="brand-input w-full"
+              />
             </div>
             <div>
               <label className="text-brand-gray text-xs mb-1 block">活动地点</label>
-              <input type="text" placeholder="输入活动地点" className="brand-input w-full" />
+              <input
+                type="text"
+                placeholder="输入活动地点"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                className="brand-input w-full"
+              />
             </div>
             <div>
               <label className="text-brand-gray text-xs mb-1 block">最大人数</label>
-              <input type="number" placeholder="20" className="brand-input w-full" />
+              <input
+                type="number"
+                placeholder="20"
+                value={maxP}
+                onChange={(e) => setMaxP(e.target.value)}
+                className="brand-input w-full"
+              />
             </div>
-            <button className="brand-btn w-full">发布活动</button>
+            <button
+              onClick={handleCreate}
+              disabled={!title || !actDate || !location || !maxP}
+              className="brand-btn w-full"
+            >
+              发布活动
+            </button>
           </div>
         )}
 
         <div className="space-y-4">
           {activities.map((act) => {
             const joined = act.participants.includes(currentUser.id);
-            const fillPct = Math.round((act.participants.length / act.maxParticipants) * 100);
+            const fillPct = act.maxParticipants > 0
+              ? Math.round((act.participants.length / act.maxParticipants) * 100)
+              : 0;
 
             return (
               <div key={act.id} className="brand-card space-y-3">

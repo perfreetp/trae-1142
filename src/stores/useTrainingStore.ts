@@ -7,6 +7,7 @@ interface TrainingState {
   records: TrainingRecord[];
   selectedDate: string;
   setSelectedDate: (date: string) => void;
+  addPlan: (plan: TrainingPlan) => void;
   addRecord: (record: TrainingRecord) => void;
   checkIn: (recordId: string) => void;
   getPlansByDate: (date: string) => TrainingPlan[];
@@ -20,6 +21,8 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
   records: trainingRecords,
   selectedDate: '2026-06-08',
   setSelectedDate: (date) => set({ selectedDate: date }),
+  addPlan: (plan) =>
+    set((state) => ({ plans: [...state.plans, plan] })),
   addRecord: (record) =>
     set((state) => ({ records: [...state.records, record] })),
   checkIn: (recordId) =>

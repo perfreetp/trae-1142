@@ -13,7 +13,9 @@ interface TeamState {
   addLeaveRequest: (request: LeaveRequest) => void;
   approveLeave: (id: string) => void;
   rejectLeave: (id: string) => void;
+  addActivity: (activity: Activity) => void;
   joinActivity: (activityId: string, userId: string) => void;
+  addScore: (score: Score) => void;
   getMembersByGroup: (groupId: string) => User[];
   getRankingByMonthlyDistance: () => { userId: string; name: string; distance: number }[];
 }
@@ -38,6 +40,8 @@ export const useTeamStore = create<TeamState>((set, get) => ({
         r.id === id ? { ...r, status: 'rejected' as const } : r
       ),
     })),
+  addActivity: (activity) =>
+    set((state) => ({ activities: [...state.activities, activity] })),
   joinActivity: (activityId, userId) =>
     set((state) => ({
       activities: state.activities.map((a) =>
@@ -46,6 +50,8 @@ export const useTeamStore = create<TeamState>((set, get) => ({
           : a
       ),
     })),
+  addScore: (score) =>
+    set((state) => ({ scores: [...state.scores, score] })),
   getMembersByGroup: (groupId) =>
     get().users.filter((u) => u.groupId === groupId),
   getRankingByMonthlyDistance: () => {
