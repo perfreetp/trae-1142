@@ -19,7 +19,9 @@ interface TrainingState {
   plans: TrainingPlan[];
   records: TrainingRecord[];
   selectedDate: string;
+  selectedPlanId: string | null;
   setSelectedDate: (date: string) => void;
+  setSelectedPlanId: (planId: string | null) => void;
   addPlan: (plan: TrainingPlan) => void;
   addRecord: (record: TrainingRecord) => void;
   updateRecord: (recordId: string, updates: Partial<TrainingRecord>) => void;
@@ -28,6 +30,7 @@ interface TrainingState {
   getPlansByDate: (date: string) => TrainingPlan[];
   getRecordsByUser: (userId: string) => TrainingRecord[];
   getRecordByDate: (userId: string, date: string) => TrainingRecord | undefined;
+  getRecordByPlanAndUser: (planId: string, userId: string) => TrainingRecord | undefined;
   getCompletionRate: (planId: string) => number;
   getRecordSubmissionRate: (planId: string) => number;
   getCompletionDetails: (planId: string) => CompletionDetail[];
@@ -37,7 +40,9 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
   plans: trainingPlans,
   records: trainingRecords,
   selectedDate: '2026-06-08',
+  selectedPlanId: 'p1',
   setSelectedDate: (date) => set({ selectedDate: date }),
+  setSelectedPlanId: (planId) => set({ selectedPlanId: planId }),
   addPlan: (plan) =>
     set((state) => ({ plans: [...state.plans, plan] })),
   addRecord: (record) =>
@@ -50,12 +55,20 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
     })),
   upsertRecord: (record) => {
     const existing = get().records.find(
-      (r) => r.userId === record.userId && r.date === record.date
+      (r) => r.userId === record.userId && r.planId === record.planId
     );
     if (existing) {
       set((state) => ({
         records: state.records.map((r) =>
-          r.id === existing.id ? { ...r, ...record, id: existing.id } : r
+          r.id === existing.id
+            ? {
+                ...existing,
+                ...record,
+                id: existing.id,
+                checkedIn: existing.checkedIn || record.checkedIn,
+                completed: existing.completed || record.completed,
+              }
+            : r
         ),
       }));
     } else {
@@ -72,6 +85,8 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
   getRecordsByUser: (userId) => get().records.filter((r) => r.userId === userId),
   getRecordByDate: (userId, date) =>
     get().records.find((r) => r.userId === userId && r.date === date),
+  getRecordByPlanAndUser: (planId, userId) =>
+    get().records.find((r) => r.planId === planId && r.userId === userId),
   getCompletionRate: (planId) => {
     const members = users.filter((u) => u.role === 'member');
     if (members.length === 0) return 0;

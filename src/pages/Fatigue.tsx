@@ -4,7 +4,6 @@ import { StickyNote, ClipboardCheck } from 'lucide-react';
 import { useUserStore, useTrainingStore } from '@/stores';
 import { cn } from '@/lib/utils';
 import Header from '@/components/Header';
-import { Link } from 'react-router-dom';
 
 const rpeDescriptions: Record<number, string> = {
   1: '非常轻松', 2: '很轻松', 3: '轻松', 4: '较轻松', 5: '适中',
@@ -26,10 +25,13 @@ function getFatigueBg(value: number): string {
 export default function Fatigue() {
   const navigate = useNavigate();
   const { currentUser } = useUserStore();
-  const { selectedDate, updateRecord, upsertRecord, getRecordByDate, getPlansByDate } = useTrainingStore();
+  const { selectedDate, selectedPlanId, updateRecord, upsertRecord, getRecordByPlanAndUser, getPlansByDate } = useTrainingStore();
 
-  const existingRecord = getRecordByDate(currentUser.id, selectedDate);
-  const todayPlan = getPlansByDate(selectedDate)[0];
+  const todayPlans = getPlansByDate(selectedDate);
+  const activePlanId = selectedPlanId ?? todayPlans[0]?.id ?? '';
+  const todayPlan = todayPlans.find(p => p.id === activePlanId);
+
+  const existingRecord = getRecordByPlanAndUser(activePlanId, currentUser.id);
 
   const [rpe, setRpe] = useState(existingRecord?.fatigue || 5);
   const [note, setNote] = useState(existingRecord?.note || '');
@@ -45,11 +47,11 @@ export default function Fatigue() {
   const handleSubmit = () => {
     if (existingRecord) {
       updateRecord(existingRecord.id, { fatigue: rpe, note });
-    } else {
+    } else if (activePlanId) {
       upsertRecord({
         id: `r-${Date.now()}`,
         userId: currentUser.id,
-        planId: todayPlan?.id ?? '',
+        planId: activePlanId,
         date: selectedDate,
         distance: 0,
         duration: 0,
@@ -77,9 +79,9 @@ export default function Fatigue() {
           <div className="brand-card animate-slide-up">
             <div className="flex items-center gap-2 mb-2">
               <ClipboardCheck className="w-4 h-4 text-brand-cyan" />
-              <span className="text-sm font-medium text-white">当天计划</span>
+              <span className="text-sm font-medium text-white">{todayPlan.title}</span>
             </div>
-            <p className="text-sm text-brand-gray">{todayPlan.title} · {todayPlan.targetDistance}km</p>
+            <p className="text-sm text-brand-gray">{todayPlan.targetDistance}km · {todayPlan.mainSession}</p>
             {existingRecord && existingRecord.fatigue > 0 && (
               <p className="text-[10px] text-brand-cyan mt-1">已有评分 RPE {existingRecord.fatigue}/10，修改后覆盖</p>
             )}

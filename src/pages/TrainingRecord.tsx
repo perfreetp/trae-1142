@@ -9,12 +9,12 @@ import HeartRateZones from '@/components/HeartRateZones';
 export default function TrainingRecord() {
   const navigate = useNavigate();
   const { currentUser } = useUserStore();
-  const { selectedDate, addRecord, updateRecord, upsertRecord, getPlansByDate, getRecordByDate } = useTrainingStore();
+  const { selectedDate, selectedPlanId, updateRecord, upsertRecord, getPlansByDate, getRecordByPlanAndUser } = useTrainingStore();
 
   const todayPlans = getPlansByDate(selectedDate);
-  const planId = todayPlans[0]?.id ?? '';
+  const activePlanId = selectedPlanId ?? todayPlans[0]?.id ?? '';
 
-  const existingRecord = getRecordByDate(currentUser.id, selectedDate);
+  const existingRecord = getRecordByPlanAndUser(activePlanId, currentUser.id);
 
   const [distance, setDistance] = useState('');
   const [duration, setDuration] = useState('');
@@ -43,11 +43,11 @@ export default function TrainingRecord() {
   };
 
   const handleSave = () => {
-    if (!distNum || !durNum) return;
+    if (!distNum || !durNum || !activePlanId) return;
 
     const recordData = {
       userId: currentUser.id,
-      planId,
+      planId: activePlanId,
       date: selectedDate,
       distance: distNum,
       duration: durNum,

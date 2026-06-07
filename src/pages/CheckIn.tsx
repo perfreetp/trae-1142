@@ -7,11 +7,13 @@ import PaceDisplay from '@/components/PaceDisplay';
 
 export default function CheckIn() {
   const { currentUser } = useUserStore();
-  const { selectedDate, records, checkIn, getRecordsByUser, getRecordByDate, getPlansByDate } = useTrainingStore();
+  const { selectedDate, selectedPlanId, records, checkIn, upsertRecord, getRecordsByUser, getRecordByPlanAndUser, getPlansByDate } = useTrainingStore();
   const [justCheckedIn, setJustCheckedIn] = useState(false);
   const [animating, setAnimating] = useState(false);
 
-  const todayRecord = getRecordByDate(currentUser.id, selectedDate);
+  const todayPlans = getPlansByDate(selectedDate);
+  const activePlanId = selectedPlanId ?? todayPlans[0]?.id ?? '';
+  const todayRecord = getRecordByPlanAndUser(activePlanId, currentUser.id);
   const isCheckedIn = todayRecord?.checkedIn ?? false;
 
   const userRecords = getRecordsByUser(currentUser.id);
@@ -40,7 +42,7 @@ export default function CheckIn() {
     return count;
   }, [userRecords, selectedDate]);
 
-  const todayPlan = getPlansByDate(selectedDate)[0];
+  const todayPlan = todayPlans.find(p => p.id === activePlanId);
 
   const handleCheckIn = () => {
     if (isCheckedIn || animating) return;
@@ -49,6 +51,22 @@ export default function CheckIn() {
 
     if (todayRecord) {
       checkIn(todayRecord.id);
+    } else if (activePlanId) {
+      upsertRecord({
+        id: `r-${Date.now()}`,
+        userId: currentUser.id,
+        planId: activePlanId,
+        date: selectedDate,
+        distance: 0,
+        duration: 0,
+        pace: 0,
+        avgHR: 0,
+        heartRateZones: { z1: 0, z2: 0, z3: 0, z4: 0, z5: 0 },
+        fatigue: 0,
+        note: '',
+        checkedIn: true,
+        completed: false,
+      });
     }
 
     setTimeout(() => {
@@ -62,7 +80,17 @@ export default function CheckIn() {
       <Header title="打卡签到" showBack />
 
       <div className="page-content space-y-6">
-        <div className="flex flex-col items-center py-8 animate-slide-up">
+        {todayPlan && (
+          <div className="brand-card animate-slide-up">
+            <div className="flex items-center gap-2 mb-1">
+              <Flame className="w-4 h-4 text-brand-cyan" />
+              <span className="text-sm font-medium text-white">{todayPlan.title}</span>
+            </div>
+            <p className="text-xs text-brand-gray">{todayPlan.targetDistance}km · {todayPlan.mainSession}</p>
+          </div>
+        )}
+
+        <div className="flex flex-col items-center py-8 animate-slide-up" style={{ animationDelay: '0.05s' }}>
           <button
             onClick={handleCheckIn}
             disabled={isCheckedIn}
@@ -92,7 +120,7 @@ export default function CheckIn() {
           </p>
         </div>
 
-        <div className="brand-card flex items-center justify-around animate-slide-up" style={{ animationDelay: '0.05s' }}>
+        <div className="brand-card flex items-center justify-around animate-slide-up" style={{ animationDelay: '0.1s' }}>
           <div className="flex flex-col items-center">
             <Trophy className="w-6 h-6 text-brand-orange mb-1" />
             <span className="font-display text-2xl font-bold text-white">{consecutiveDays}</span>
@@ -108,8 +136,8 @@ export default function CheckIn() {
           </div>
         </div>
 
-        {todayRecord && (
-          <div className="brand-card animate-slide-up" style={{ animationDelay: '0.1s' }}>
+        {todayRecord && todayRecord.distance > 0 && (
+          <div className="brand-card animate-slide-up" style={{ animationDelay: '0.15s' }}>
             <h3 className="section-title text-base mb-3">今日训练</h3>
             <div className="grid grid-cols-3 gap-3">
               <div className="flex flex-col items-center p-3 bg-brand-deeper rounded-xl">

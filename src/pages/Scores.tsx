@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Send, ChevronDown, ChevronUp, Trophy, TrendingUp, Filter, Medal, LineChart } from 'lucide-react';
+import { Send, ChevronDown, ChevronUp, Trophy, TrendingUp, Filter, Medal, LineChart, Star } from 'lucide-react';
 import { LineChart as RechartsLine, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import Header from '@/components/Header';
 import { useUserStore, useTeamStore } from '@/stores';
@@ -20,15 +20,16 @@ function formatTime(minutes: number) {
   return `${m}'${sec.toString().padStart(2, '0')}"`;
 }
 
-function getDistanceType(distance: number): string {
-  if (distance <= 5) return '5K';
-  if (distance <= 10) return '10K';
-  if (distance <= 21.1) return '半马';
-  if (distance <= 42.2) return '全马';
+function getStrictDistanceType(distance: number): string {
+  if (distance >= 4.5 && distance <= 5.5) return '5K';
+  if (distance >= 9.5 && distance <= 10.5) return '10K';
+  if (distance >= 20.5 && distance <= 22) return '半马';
+  if (distance >= 41 && distance <= 43) return '全马';
   return '其他';
 }
 
 const distanceTypes = ['全部', '5K', '10K', '半马', '全马', '其他'];
+const compareDistTypes = ['5K', '10K', '半马', '全马', '其他'];
 const tabs = ['成绩记录', '队内对比'] as const;
 type Tab = typeof tabs[number];
 
@@ -54,6 +55,10 @@ export default function Scores() {
   const [compareDistType, setCompareDistType] = useState('5K');
   const [compareExpandedUser, setCompareExpandedUser] = useState<string | null>(null);
 
+  const [analysisMember, setAnalysisMember] = useState('全部');
+  const [analysisDist, setAnalysisDist] = useState('全部');
+  const [analysisMonth, setAnalysisMonth] = useState('全部');
+
   const viewUserId = isCoach ? selectedMember : currentUser.id;
 
   const userScores = useMemo(() => {
@@ -64,7 +69,7 @@ export default function Scores() {
       filtered = filtered.filter((s) => s.date.startsWith(filterMonth));
     }
     if (filterDistType !== '全部') {
-      filtered = filtered.filter((s) => getDistanceType(s.distance) === filterDistType);
+      filtered = filtered.filter((s) => getStrictDistanceType(s.distance) === filterDistType);
     }
     return filtered;
   }, [scores, viewUserId, filterMonth, filterDistType]);
@@ -73,6 +78,11 @@ export default function Scores() {
     const months = new Set(scores.filter(s => s.userId === viewUserId).map(s => s.date.slice(0, 7)));
     return ['全部', ...Array.from(months).sort().reverse()];
   }, [scores, viewUserId]);
+
+  const allMonthsGlobal = useMemo(() => {
+    const months = new Set(scores.map(s => s.date.slice(0, 7)));
+    return ['全部', ...Array.from(months).sort().reverse()];
+  }, [scores]);
 
   const personalBest = useMemo(() => {
     const allUserScores = scores.filter(s => s.userId === viewUserId);
@@ -86,7 +96,16 @@ export default function Scores() {
   }, [scores, viewUserId]);
 
   const rankings = useMemo(() => {
-    const filtered = scores.filter(s => getDistanceType(s.distance) === compareDistType);
+    let filtered = scores;
+
+    const effectiveDist = isCoach && analysisDist !== '全部' ? analysisDist : compareDistType;
+    filtered = filtered.filter(s => getStrictDistanceType(s.distance) === effectiveDist);
+
+    if (isCoach) {
+      if (analysisMember !== '全部') filtered = filtered.filter(s => s.userId === analysisMember);
+      if (analysisMonth !== '全部') filtered = filtered.filter(s => s.date.startsWith(analysisMonth));
+    }
+
     const bestByUser = new Map<string, Score>();
     for (const s of filtered) {
       const existing = bestByUser.get(s.userId);
@@ -94,33 +113,37 @@ export default function Scores() {
         bestByUser.set(s.userId, s);
       }
     }
+
     return Array.from(bestByUser.entries())
-      .map(([userId, score]) => ({
-        userId,
-        name: users.find(u => u.id === userId)?.name ?? userId,
-        score,
-      }))
+      .map(([userId, score]) => {
+        const userAllScores = scores.filter(s => s.userId === userId);
+        const userBest = userAllScores.length > 0
+          ? userAllScores.reduce((b, s) => s.pace < b.pace ? s : b, userAllScores[0])
+          : null;
+        return {
+          userId,
+          name: users.find(u => u.id === userId)?.name ?? userId,
+          score,
+          isPB: userBest?.id === score.id,
+          totalRaces: filtered.filter(s => s.userId === userId).length,
+        };
+      })
       .sort((a, b) => a.score.pace - b.score.pace);
-  }, [scores, compareDistType, users]);
+  }, [scores, compareDistType, isCoach, analysisDist, analysisMember, analysisMonth, users]);
 
-  const getMemberCurve = useMemo(() => {
-    if (!compareExpandedUser) return [];
-    return scores
-      .filter(s => s.userId === compareExpandedUser)
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .map(s => ({
-        date: s.date.slice(5),
-        pace: Math.round(s.pace * 100) / 100,
-        race: s.raceName,
-      }));
-  }, [scores, compareExpandedUser]);
-
-  const getLatestRace = useMemo(() => {
-    if (!compareExpandedUser) return null;
-    const userRaces = scores
+  const getMemberDetail = useMemo(() => {
+    if (!compareExpandedUser) return { curve: [], latest: null as Score | null, best: null as Score | null, last3: [] as Score[], isNewPB: false };
+    const userAll = scores
       .filter(s => s.userId === compareExpandedUser)
       .sort((a, b) => b.date.localeCompare(a.date));
-    return userRaces[0] ?? null;
+    const best = userAll.length > 0 ? userAll.reduce((b, s) => s.pace < b.pace ? s : b, userAll[0]) : null;
+    const latest = userAll[0] ?? null;
+    const last3 = userAll.slice(0, 3);
+    const isNewPB = latest && best ? latest.id === best.id : false;
+    const curve = [...userAll]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(s => ({ date: s.date.slice(5), pace: Math.round(s.pace * 100) / 100, race: s.raceName }));
+    return { curve, latest, best, last3, isNewPB };
   }, [scores, compareExpandedUser]);
 
   const handleSubmit = () => {
@@ -147,7 +170,6 @@ export default function Scores() {
   };
 
   const viewUserName = users.find(u => u.id === viewUserId)?.name ?? '';
-
   const medalColors = ['text-yellow-400', 'text-gray-300', 'text-amber-600'];
 
   return (
@@ -156,14 +178,7 @@ export default function Scores() {
 
       <div className="flex gap-1 mb-4 p-1 bg-brand-card rounded-xl">
         {tabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={cn(
-              'flex-1 py-2 text-sm font-medium rounded-lg transition-all',
-              activeTab === tab ? 'bg-gradient-brand text-white shadow-glow' : 'text-brand-gray hover:text-white',
-            )}
-          >
+          <button key={tab} onClick={() => setActiveTab(tab)} className={cn('flex-1 py-2 text-sm font-medium rounded-lg transition-all', activeTab === tab ? 'bg-gradient-brand text-white shadow-glow' : 'text-brand-gray hover:text-white')}>
             {tab}
           </button>
         ))}
@@ -288,23 +303,65 @@ export default function Scores() {
       {activeTab === '队内对比' && (
         <>
           <div className="flex gap-2 mb-4">
-            {['5K', '10K', '半马', '全马'].map((t) => (
-              <button key={t} onClick={() => { setCompareDistType(t); setCompareExpandedUser(null); }} className={cn('px-3 py-1.5 rounded-full text-xs font-medium transition-all', compareDistType === t ? 'bg-brand-cyan/20 text-brand-cyan' : 'bg-brand-card text-brand-gray hover:text-white')}>
+            {compareDistTypes.map((t) => (
+              <button key={t} onClick={() => { setCompareDistType(t); if (isCoach) setAnalysisDist(t); setCompareExpandedUser(null); }} className={cn('px-3 py-1.5 rounded-full text-xs font-medium transition-all', compareDistType === t ? 'bg-brand-cyan/20 text-brand-cyan' : 'bg-brand-card text-brand-gray hover:text-white')}>
                 {t}
               </button>
             ))}
           </div>
 
+          {isCoach && (
+            <div className="brand-card mb-4 space-y-3 animate-slide-up">
+              <div className="flex items-center gap-2">
+                <Filter className="w-3.5 h-3.5 text-brand-gray" />
+                <span className="text-xs text-brand-gray font-medium">组合筛选</span>
+              </div>
+              <div>
+                <label className="text-[10px] text-brand-gray mb-1 block">成员</label>
+                <div className="flex gap-1.5 flex-wrap">
+                  <button onClick={() => setAnalysisMember('全部')} className={cn('px-2.5 py-1 rounded-full text-[10px] font-medium transition-all', analysisMember === '全部' ? 'bg-brand-cyan/20 text-brand-cyan' : 'bg-brand-deeper text-brand-gray')}>全部</button>
+                  {memberUsers.map(u => (
+                    <button key={u.id} onClick={() => setAnalysisMember(u.id)} className={cn('px-2.5 py-1 rounded-full text-[10px] font-medium transition-all', analysisMember === u.id ? 'bg-brand-cyan/20 text-brand-cyan' : 'bg-brand-deeper text-brand-gray')}>{u.name}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] text-brand-gray mb-1 block">距离</label>
+                <div className="flex gap-1.5 flex-wrap">
+                  {['全部', ...compareDistTypes].map(d => (
+                    <button key={d} onClick={() => { setAnalysisDist(d); if (d !== '全部') setCompareDistType(d); }} className={cn('px-2.5 py-1 rounded-full text-[10px] font-medium transition-all', analysisDist === d ? 'bg-brand-cyan/20 text-brand-cyan' : 'bg-brand-deeper text-brand-gray')}>{d}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] text-brand-gray mb-1 block">月份</label>
+                <div className="flex gap-1.5 flex-wrap">
+                  {allMonthsGlobal.map(m => (
+                    <button key={m} onClick={() => setAnalysisMonth(m)} className={cn('px-2.5 py-1 rounded-full text-[10px] font-medium transition-all', analysisMonth === m ? 'bg-brand-cyan/20 text-brand-cyan' : 'bg-brand-deeper text-brand-gray')}>{m === '全部' ? '全部' : m.slice(5) + '月'}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2 mb-4">
+            {isCoach && (analysisMember !== '全部' || analysisMonth !== '全部') && (
+              <div className="flex items-center gap-2 mb-2">
+                <Filter className="w-3 h-3 text-brand-cyan" />
+                <span className="text-[10px] text-brand-cyan">
+                  {analysisMember !== '全部' && users.find(u => u.id === analysisMember)?.name}
+                  {analysisMember !== '全部' && analysisMonth !== '全部' && ' · '}
+                  {analysisMonth !== '全部' && (analysisMonth.slice(5) + '月')}
+                  {' · '}共 {rankings.length} 人 {rankings.reduce((sum, r) => sum + r.totalRaces, 0)} 条记录
+                </span>
+              </div>
+            )}
             {rankings.map((r, i) => {
               const isExpanded = compareExpandedUser === r.userId;
               const isSelected = r.userId === viewUserId;
               return (
                 <div key={r.userId} className="brand-card overflow-hidden">
-                  <button
-                    onClick={() => setCompareExpandedUser(isExpanded ? null : r.userId)}
-                    className="w-full flex items-center gap-3"
-                  >
+                  <button onClick={() => setCompareExpandedUser(isExpanded ? null : r.userId)} className="w-full flex items-center gap-3">
                     <div className={cn('w-8 text-center shrink-0', i < 3 ? medalColors[i] : 'text-brand-gray')}>
                       {i < 3 ? <Medal size={20} className="mx-auto" /> : <span className="text-sm font-bold">{i + 1}</span>}
                     </div>
@@ -312,28 +369,60 @@ export default function Scores() {
                       <div className="flex items-center gap-2">
                         <span className={cn('text-sm font-medium', isSelected ? 'text-brand-cyan' : 'text-white')}>{r.name}</span>
                         {i === 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-orange/20 text-brand-orange font-medium">最快</span>}
+                        {r.isPB && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-green/20 text-brand-green font-medium flex items-center gap-0.5"><Star size={8} />PB</span>}
                       </div>
-                      <p className="text-[10px] text-brand-gray mt-0.5">{r.score.raceName} · {r.score.date}</p>
+                      <p className="text-[10px] text-brand-gray mt-0.5">{r.score.raceName} · {r.score.date} · {r.score.distance}km{isCoach && r.totalRaces > 1 ? ` · ${r.totalRaces}场` : ''}</p>
                     </div>
                     <div className="text-right shrink-0">
                       <div className="text-brand-green font-display font-bold text-sm">{formatMinPace(r.score.pace)}</div>
-                      <div className="text-[10px] text-brand-gray">{r.score.distance}km</div>
                     </div>
                     {isExpanded ? <ChevronUp size={14} className="text-brand-gray shrink-0" /> : <ChevronDown size={14} className="text-brand-gray shrink-0" />}
                   </button>
 
                   {isExpanded && (
                     <div className="mt-3 pt-3 border-t border-brand-border space-y-3 animate-slide-up">
-                      {getLatestRace && getLatestRace.userId === r.userId && (
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="bg-brand-deeper rounded-lg p-2.5"><p className="text-[10px] text-brand-gray">最近比赛</p><p className="text-sm text-white mt-0.5">{getLatestRace.raceName}</p></div>
-                          <div className="bg-brand-deeper rounded-lg p-2.5"><p className="text-[10px] text-brand-gray">比赛日期</p><p className="text-sm text-white mt-0.5">{getLatestRace.date}</p></div>
-                          <div className="bg-brand-deeper rounded-lg p-2.5"><p className="text-[10px] text-brand-gray">距离</p><p className="text-sm text-white mt-0.5">{getLatestRace.distance} km</p></div>
-                          <div className="bg-brand-deeper rounded-lg p-2.5"><p className="text-[10px] text-brand-gray">配速</p><p className="text-sm text-brand-cyan mt-0.5">{formatMinPace(getLatestRace.pace)} /km</p></div>
+                      {getMemberDetail.best && (
+                        <div className="flex items-center gap-2 p-2 bg-brand-orange/10 rounded-lg">
+                          <Trophy className="w-4 h-4 text-brand-orange" />
+                          <div className="text-xs">
+                            <span className="text-brand-gray">个人最佳 </span>
+                            <span className="text-brand-orange font-semibold">{formatMinPace(getMemberDetail.best.pace)}/km</span>
+                            <span className="text-brand-gray"> · {getMemberDetail.best.raceName}</span>
+                          </div>
                         </div>
                       )}
 
-                      {getMemberCurve.length > 1 && (
+                      {getMemberDetail.isNewPB && (
+                        <div className="flex items-center gap-2 p-2 bg-brand-green/10 rounded-lg">
+                          <Star className="w-4 h-4 text-brand-green" />
+                          <span className="text-xs text-brand-green font-medium">最近一场刷新个人最佳！</span>
+                        </div>
+                      )}
+
+                      {getMemberDetail.latest && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="bg-brand-deeper rounded-lg p-2.5"><p className="text-[10px] text-brand-gray">最近比赛</p><p className="text-sm text-white mt-0.5">{getMemberDetail.latest.raceName}</p></div>
+                          <div className="bg-brand-deeper rounded-lg p-2.5"><p className="text-[10px] text-brand-gray">比赛日期</p><p className="text-sm text-white mt-0.5">{getMemberDetail.latest.date}</p></div>
+                          <div className="bg-brand-deeper rounded-lg p-2.5"><p className="text-[10px] text-brand-gray">距离</p><p className="text-sm text-white mt-0.5">{getMemberDetail.latest.distance} km</p></div>
+                          <div className="bg-brand-deeper rounded-lg p-2.5"><p className="text-[10px] text-brand-gray">配速</p><p className="text-sm text-brand-cyan mt-0.5">{formatMinPace(getMemberDetail.latest.pace)} /km</p></div>
+                        </div>
+                      )}
+
+                      {getMemberDetail.last3.length > 1 && (
+                        <div>
+                          <p className="text-[10px] text-brand-gray mb-1.5">最近三场变化</p>
+                          <div className="flex gap-2">
+                            {getMemberDetail.last3.map((s, si) => (
+                              <div key={s.id} className="flex-1 bg-brand-deeper rounded-lg p-2 text-center">
+                                <p className="text-[10px] text-brand-gray">{s.raceName.slice(0, 4)}</p>
+                                <p className={cn('text-sm font-semibold mt-0.5', si === 0 ? 'text-brand-cyan' : 'text-white')}>{formatMinPace(s.pace)}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {getMemberDetail.curve.length > 1 && (
                         <div>
                           <div className="flex items-center gap-1.5 mb-2">
                             <LineChart className="w-3.5 h-3.5 text-brand-cyan" />
@@ -341,7 +430,7 @@ export default function Scores() {
                           </div>
                           <div className="bg-brand-deeper rounded-xl p-3">
                             <ResponsiveContainer width="100%" height={120}>
-                              <RechartsLine data={getMemberCurve}>
+                              <RechartsLine data={getMemberDetail.curve}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                                 <XAxis dataKey="date" tick={{ fill: '#94A3B8', fontSize: 10 }} axisLine={{ stroke: '#334155' }} />
                                 <YAxis tick={{ fill: '#94A3B8', fontSize: 10 }} axisLine={{ stroke: '#334155' }} domain={['auto', 'auto']} reversed />
